@@ -1,0 +1,5 @@
+{
+  "name": "Nexus Enterprise OS",
+  "description": "A centralized Enterprise Operating System featuring advanced Role-Based Access Control (RBAC) and personnel management.",
+  "requestFramePermissions": []
+}
