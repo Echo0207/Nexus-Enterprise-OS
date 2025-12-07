@@ -9,6 +9,7 @@ import { PermissionGuard } from './components/PermissionGuard';
 import { Dashboard } from './pages/Dashboard';
 import { SalaryTestPage } from './pages/SalaryTestPage';
 import { HRPage } from './pages/HRPage';
+import { KnowledgeBasePage } from './pages/KnowledgeBasePage';
 
 const ProtectedRoute = ({ children }: { children?: React.ReactNode }) => {
   const { isAuthenticated } = useAuth();
@@ -31,17 +32,20 @@ const AppRoutes = () => {
         <Route index element={<Navigate to="/dashboard" replace />} />
         <Route path="dashboard" element={<Dashboard />} />
         
-        {/* Module C: HR Center (General Access for Leave, specific perms inside) */}
+        {/* Module C: HR Center */}
         <Route path="hr" element={<HRPage />} />
 
-        {/* RBAC Test Page: Requires salary:view:dept */}
+        {/* Module D: Knowledge Base */}
+        <Route path="knowledge" element={<KnowledgeBasePage />} />
+
+        {/* RBAC Test Page */}
         <Route path="dept-salary" element={
             <PermissionGuard requiredPermission="salary:view:dept">
                 <SalaryTestPage />
             </PermissionGuard>
         } />
 
-        {/* Role Management: Requires admin:edit:roles */}
+        {/* Role Management */}
         <Route path="settings/roles" element={
             <PermissionGuard requiredPermission="admin:edit:roles">
                 <RoleManagementPage />

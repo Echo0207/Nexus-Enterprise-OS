@@ -2,8 +2,8 @@
 import React, { useState, useEffect } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { hrService } from '../services/hrService';
-import { LeaveBalance, LeaveRequest, Payslip, CostTransaction } from '../types';
-import { Calendar, DollarSign, PieChart, Briefcase, Plus, FileText, Download, CheckCircle, Clock, AlertTriangle, X, User as UserIcon, AlertCircle, Edit2, Check, Paperclip, FolderOpen, ArrowRight } from 'lucide-react';
+import { LeaveBalance, LeaveRequest, Payslip, CostTransaction, ProjectMonthlyDetail } from '../types';
+import { Calendar, DollarSign, PieChart, Briefcase, Plus, FileText, Download, CheckCircle, Clock, AlertTriangle, X, User as UserIcon, AlertCircle, Edit2, Check, Paperclip, FolderOpen, ArrowRight, ExternalLink } from 'lucide-react';
 import { MOCK_LEAVE_TYPES, MOCK_USERS } from '../services/mockData';
 import { HRDocumentRepo } from '../components/hr/HRDocumentRepo';
 
@@ -22,9 +22,6 @@ export const HRPage: React.FC = () => {
   const [showSpecialLeaveModal, setShowSpecialLeaveModal] = useState(false);
   const [showApplyPanel, setShowApplyPanel] = useState(false);
   const [showApprovalPanel, setShowApprovalPanel] = useState(false);
-  
-  // Cost Detail Modal State
-  const [selectedTx, setSelectedTx] = useState<CostTransaction | null>(null);
   
   // Application Form State
   const [isEditMode, setIsEditMode] = useState(false);
@@ -54,6 +51,10 @@ export const HRPage: React.FC = () => {
   const [costTrans, setCostTrans] = useState<CostTransaction[]>([]);
   const [isProcessingBatch, setIsProcessingBatch] = useState(false);
   const [isExportingReport, setIsExportingReport] = useState(false);
+  
+  // Project Detail Modal State
+  const [selectedProjectDetail, setSelectedProjectDetail] = useState<ProjectMonthlyDetail | null>(null);
+  const [isLoadingProjectDetail, setIsLoadingProjectDetail] = useState(false);
 
   useEffect(() => {
     if (user) {
@@ -218,13 +219,32 @@ export const HRPage: React.FC = () => {
       try {
           const report = await hrService.generateMonthlyCostReport(selectedPeriod);
           await hrService.saveMonthlyCostReportDocument(report, user.id);
-          alert("匯出成功！\n詳細報表已存入文件資料庫 > 專案成本分攤報表。");
+          alert("匯出成功！\n詳細報表 (包含各專案累計/月明細) 已存入文件資料庫。");
           setActiveTab('docs');
       } catch (e) {
           console.error(e);
           alert("匯出失敗");
       } finally {
           setIsExportingReport(false);
+      }
+  };
+
+  const handleViewProjectDetail = async (projectName: string) => {
+      setIsLoadingProjectDetail(true);
+      setSelectedProjectDetail(null);
+      try {
+          // Reuse generator to get details (in real app, call specific API)
+          const report = await hrService.generateMonthlyCostReport(selectedPeriod);
+          const detail = report.projectDetails.find(p => p.projectName === projectName || p.projectId === projectName);
+          if (detail) {
+              setSelectedProjectDetail(detail);
+          } else {
+              alert("查無詳細資料");
+          }
+      } catch (e) {
+          console.error(e);
+      } finally {
+          setIsLoadingProjectDetail(false);
       }
   };
 
@@ -573,11 +593,18 @@ export const HRPage: React.FC = () => {
                                     {costTrans.map(tx => (
                                         <tr 
                                             key={tx.id} 
-                                            // onClick={() => setSelectedTx(tx)} // Individual view less relevant now
                                             className="hover:bg-blue-50 transition-colors"
                                         >
                                             <td className="px-6 py-3 font-mono text-xs text-blue-600">{tx.id}</td>
-                                            <td className="px-6 py-3 font-bold text-slate-700">{tx.project_id}</td>
+                                            <td className="px-6 py-3">
+                                                <button 
+                                                    onClick={() => handleViewProjectDetail(tx.project_id)}
+                                                    className="font-bold text-blue-600 hover:underline flex items-center gap-1"
+                                                >
+                                                    {tx.project_id}
+                                                    <ExternalLink size={12} />
+                                                </button>
+                                            </td>
                                             <td className="px-6 py-3 text-slate-500 text-xs">{tx.date}</td>
                                             <td className="px-6 py-3 text-slate-600">{tx.description}</td>
                                             <td className="px-6 py-3 text-right font-mono">{formatCurrency(tx.amount)}</td>
@@ -930,6 +957,125 @@ export const HRPage: React.FC = () => {
                     </button>
                 </div>
             </div>
+
+            {/* Project Cost Detail Modal */}
+            {isLoadingProjectDetail && (
+                <div className="fixed inset-0 bg-black/10 backdrop-blur-[1px] z-[60] flex items-center justify-center">
+                    <div className="bg-white p-4 rounded-lg shadow-lg flex items-center gap-3">
+                        <Clock className="animate-spin text-blue-600" />
+                        <span className="text-sm font-medium text-slate-700">載入專案明細中...</span>
+                    </div>
+                </div>
+            )}
+
+            {selectedProjectDetail && (
+                <div className="fixed inset-0 bg-slate-900/50 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+                    <div className="bg-white rounded-xl shadow-2xl w-full max-w-3xl animate-scale-in overflow-hidden flex flex-col max-h-[85vh]">
+                        <div className="bg-slate-900 text-white px-6 py-4 shrink-0 flex justify-between items-start">
+                            <div>
+                                <h3 className="text-xl font-bold">{selectedProjectDetail.projectName}</h3>
+                                <p className="text-blue-200 text-sm mt-1">專案月結明細 ({selectedPeriod})</p>
+                            </div>
+                            <button onClick={() => setSelectedProjectDetail(null)} className="text-slate-400 hover:text-white p-1">
+                                <X size={24} />
+                            </button>
+                        </div>
+                        
+                        <div className="flex-1 overflow-y-auto p-6">
+                            <div className="grid grid-cols-2 gap-4 mb-6">
+                                <div className="bg-blue-50 p-4 rounded-xl border border-blue-100">
+                                    <p className="text-xs text-slate-500 uppercase font-bold mb-1">本月投入成本</p>
+                                    <p className="text-2xl font-bold text-slate-800">{formatCurrency(selectedProjectDetail.totalCost)}</p>
+                                    <p className="text-xs text-blue-600 mt-1">{selectedProjectDetail.totalHours} hours</p>
+                                </div>
+                                <div className="bg-slate-50 p-4 rounded-xl border border-slate-100">
+                                    <p className="text-xs text-slate-500 uppercase font-bold mb-1">專案累計成本 (Mock YTD)</p>
+                                    <p className="text-2xl font-bold text-slate-600">{formatCurrency(selectedProjectDetail.cumulativeCost)}</p>
+                                    <p className="text-xs text-slate-400 mt-1">Total: {selectedProjectDetail.cumulativeHours} hours</p>
+                                </div>
+                            </div>
+
+                            {/* Monthly Tasks Section */}
+                            <h4 className="font-bold text-slate-800 mb-3 flex items-center gap-2">
+                                <CheckCircle size={16} className="text-green-500" /> 
+                                本月已完成任務 (Monthly Completed Tasks)
+                            </h4>
+                            <div className="border border-slate-200 rounded-lg overflow-hidden mb-6">
+                                <table className="w-full text-sm text-left">
+                                    <thead className="bg-slate-50 text-slate-500 text-xs uppercase">
+                                        <tr>
+                                            <th className="px-4 py-3">任務 (Task)</th>
+                                            <th className="px-4 py-3">負責人</th>
+                                            <th className="px-4 py-3 text-right">工時</th>
+                                            <th className="px-4 py-3 text-right">成本</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody className="divide-y divide-slate-100">
+                                        {selectedProjectDetail.tasks.map((task, idx) => (
+                                            <tr key={idx} className="hover:bg-slate-50">
+                                                <td className="px-4 py-3 font-medium text-slate-700">
+                                                    <div className="text-xs text-slate-400 font-mono mb-0.5">{task.taskId}</div>
+                                                    {task.taskTitle}
+                                                </td>
+                                                <td className="px-4 py-3 text-slate-600">{task.assigneeName}</td>
+                                                <td className="px-4 py-3 text-right text-slate-600">{task.hours} h</td>
+                                                <td className="px-4 py-3 text-right font-mono text-slate-800">{formatCurrency(task.cost)}</td>
+                                            </tr>
+                                        ))}
+                                        {selectedProjectDetail.tasks.length === 0 && (
+                                            <tr>
+                                                <td colSpan={4} className="px-4 py-6 text-center text-slate-400">本月無完成任務</td>
+                                            </tr>
+                                        )}
+                                    </tbody>
+                                </table>
+                            </div>
+
+                            {/* Cumulative Person Section */}
+                            <h4 className="font-bold text-slate-800 mb-3 flex items-center gap-2">
+                                <Clock size={16} className="text-blue-500" /> 
+                                專案累計明細 (Cumulative by Person)
+                            </h4>
+                            <div className="border border-slate-200 rounded-lg overflow-hidden">
+                                <table className="w-full text-sm text-left">
+                                    <thead className="bg-slate-50 text-slate-500 text-xs uppercase">
+                                        <tr>
+                                            <th className="px-4 py-3">負責人 (Assignee)</th>
+                                            <th className="px-4 py-3 text-right">累計工時 (Total Hours)</th>
+                                            <th className="px-4 py-3 text-right">累計成本 (Total Cost)</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody className="divide-y divide-slate-100">
+                                        {selectedProjectDetail.cumulativePersonCosts.map((person, idx) => (
+                                            <tr key={idx} className="hover:bg-slate-50">
+                                                <td className="px-4 py-3 font-medium text-slate-700">
+                                                    {person.userName}
+                                                </td>
+                                                <td className="px-4 py-3 text-right text-slate-600">{person.totalHours} h</td>
+                                                <td className="px-4 py-3 text-right font-mono text-slate-800">{formatCurrency(person.totalCost)}</td>
+                                            </tr>
+                                        ))}
+                                        {selectedProjectDetail.cumulativePersonCosts.length === 0 && (
+                                            <tr>
+                                                <td colSpan={3} className="px-4 py-6 text-center text-slate-400">無累計數據</td>
+                                            </tr>
+                                        )}
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+                        
+                        <div className="p-4 border-t border-slate-200 bg-slate-50 flex justify-end shrink-0">
+                            <button 
+                                onClick={() => setSelectedProjectDetail(null)}
+                                className="px-5 py-2 bg-white border border-slate-300 rounded-lg text-sm font-medium hover:bg-slate-50 text-slate-700 shadow-sm"
+                            >
+                                關閉
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
         </div>
     </div>
   );

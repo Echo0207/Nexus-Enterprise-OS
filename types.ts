@@ -105,6 +105,32 @@ export interface CostTransaction {
   description: string;
 }
 
+export interface ProjectTaskCost {
+    taskId: string;
+    taskTitle: string;
+    assigneeName: string;
+    hours: number;
+    cost: number;
+}
+
+export interface ProjectPersonCost {
+    userId: string;
+    userName: string;
+    totalHours: number;
+    totalCost: number;
+}
+
+export interface ProjectMonthlyDetail {
+    projectId: string;
+    projectName: string;
+    totalCost: number; // Monthly Total
+    totalHours: number;
+    tasks: ProjectTaskCost[]; // Monthly Tasks
+    cumulativeCost: number; // YTD Mock
+    cumulativeHours: number; // YTD Mock
+    cumulativePersonCosts: ProjectPersonCost[]; // Cumulative aggregated by Person
+}
+
 export interface MonthlyCostReport {
     period: string;
     generatedAt: string;
@@ -123,6 +149,7 @@ export interface MonthlyCostReport {
         efficiencyRate: number;
         costContribution: number;
     }[];
+    projectDetails: ProjectMonthlyDetail[]; // New detailed breakdown
 }
 
 // --- Module B: Project Management Models ---
@@ -267,6 +294,56 @@ export interface SprintReviewReport {
     totalCost: number;
     teamPerformance: UserPerformance[];
     projectBreakdown: ProjectCostBreakdown[];
+}
+
+// --- Module D: Knowledge Base & RAG ---
+
+export interface KnowledgeCategory {
+  id: string;
+  name: string;
+  description: string;
+}
+
+export interface KnowledgeDocument {
+  id: string;
+  title: string;
+  category_id: string;
+  file_type: 'pdf' | 'docx' | 'txt' | 'md' | 'notion';
+  size: string;
+  uploaded_at: string;
+  uploaded_by: string;
+  
+  // Permissions (RBAC)
+  is_public: boolean;
+  allowed_roles: string[]; // e.g., ['hr_manager']
+  allowed_dept_ids: string[]; // e.g., ['dept-hr']
+  
+  // System Status
+  status: 'Processing' | 'Indexed' | 'Error';
+}
+
+// Simulates Vector DB Chunk
+export interface KnowledgeChunk {
+  id: string;
+  document_id: string;
+  content_text: string;
+  // Metadata for filtering
+  meta_allowed_roles: string[];
+  meta_allowed_dept_ids: string[];
+  meta_is_public: boolean;
+}
+
+export interface ChatMessage {
+  id: string;
+  role: 'user' | 'assistant' | 'system';
+  content: string;
+  timestamp: string;
+  // If assistant, can have citations
+  sources?: {
+    doc_id: string;
+    doc_title: string;
+    snippet: string;
+  }[];
 }
 
 // API Response Models

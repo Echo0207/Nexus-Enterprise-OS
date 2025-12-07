@@ -1,5 +1,5 @@
 
-import { User, LeaveBalance, Payslip, LeaveType, LeaveRequest, PayslipItem, CostTransaction, Document, MonthlyCostReport } from '../types';
+import { User, LeaveBalance, Payslip, LeaveType, LeaveRequest, PayslipItem, CostTransaction, Document, MonthlyCostReport, ProjectMonthlyDetail, ProjectTaskCost, ProjectPersonCost } from '../types';
 import { MOCK_USERS, MOCK_LEAVE_TYPES, MOCK_LEAVE_REQUESTS } from './mockData';
 import { MOCK_PROJECTS, MOCK_DOCS, MOCK_TASKS } from './mockProjectData';
 import { projectService } from './projectService';
@@ -268,12 +268,21 @@ export const hrService = {
       let totalCost = 0;
       const projectCostMap: Record<string, number> = {};
       const userStatsMap: Record<string, any> = {};
+      
+      // Detailed Map for Drill-down
+      const projectDetailMap: Record<string, {
+          projectId: string;
+          projectName: string;
+          totalCost: number;
+          totalHours: number;
+          tasks: ProjectTaskCost[]; // Monthly
+          cumulativePersonMap: Record<string, ProjectPersonCost>; // Helper map
+          cumulativeCost: number;
+          cumulativeHours: number;
+      }> = {};
 
-      // Mock Iteration: Go through tasks to simulate "Work Log" data for the month
+      // Mock Iteration: Go through tasks to simulate "Work Log" data
       MOCK_TASKS.forEach(task => {
-          // Simulate tasks belonging to this month (Mock logic)
-          // In real app, check task.updated_at or work_logs table
-          
           if (task.assignee_id && task.status === 'Done') {
               const hours = projectService.parseTimeSpent(task.time_spent);
               
@@ -287,12 +296,49 @@ export const hrService = {
                   cost = hours * hourlyRate;
               }
 
-              // Aggregate Project Cost
+              // Init Project Map Entry
+              if (!projectDetailMap[task.project_id]) {
+                  const project = MOCK_PROJECTS.find(p => p.id === task.project_id);
+                  projectDetailMap[task.project_id] = {
+                      projectId: task.project_id,
+                      projectName: project ? project.name : task.project_id,
+                      totalCost: 0,
+                      totalHours: 0,
+                      tasks: [],
+                      cumulativePersonMap: {},
+                      cumulativeCost: 0,
+                      cumulativeHours: 0
+                  };
+              }
+
+              // 1. Add to Cumulative Person Data (Simulate all Done tasks as history)
+              const assigneeId = task.assignee_id!;
+              const assigneeName = user ? user.name : 'Unknown';
+              const pDetail = projectDetailMap[task.project_id];
+
+              pDetail.cumulativeCost += cost;
+              pDetail.cumulativeHours += hours;
+
+              if (!pDetail.cumulativePersonMap[assigneeId]) {
+                  pDetail.cumulativePersonMap[assigneeId] = {
+                      userId: assigneeId,
+                      userName: assigneeName,
+                      totalHours: 0,
+                      totalCost: 0
+                  };
+              }
+              pDetail.cumulativePersonMap[assigneeId].totalHours += hours;
+              pDetail.cumulativePersonMap[assigneeId].totalCost += cost;
+
+              // 2. Add to Monthly Lists (Mock Logic: Treat all done tasks as monthly for this demo, 
+              // or filter a subset. For "Total Cost" consistency in report, let's use all.)
+              
+              // 3. Aggregate Monthly Summary
               if (!projectCostMap[task.project_id]) projectCostMap[task.project_id] = 0;
               projectCostMap[task.project_id] += cost;
               totalCost += cost;
 
-              // Aggregate User Stats
+              // 4. Aggregate User Stats (KPI)
               if (!userStatsMap[task.assignee_id]) {
                   userStatsMap[task.assignee_id] = {
                       userId: task.assignee_id,
@@ -305,9 +351,42 @@ export const hrService = {
               }
               userStatsMap[task.assignee_id].totalHours += hours;
               userStatsMap[task.assignee_id].tasksCompleted += 1;
-              userStatsMap[task.assignee_id].tasksTotal += 1; // Assuming all checked tasks were assigned this month
+              userStatsMap[task.assignee_id].tasksTotal += 1; 
               userStatsMap[task.assignee_id].costContribution += cost;
+
+              // 5. Add to Monthly Detailed List
+              pDetail.totalCost += cost;
+              pDetail.totalHours += hours;
+              pDetail.tasks.push({
+                  taskId: task.key,
+                  taskTitle: task.title,
+                  assigneeName: user ? user.name : 'Unknown',
+                  hours: hours,
+                  cost: Math.round(cost)
+              });
           }
+      });
+
+      // Enhance Cumulative with Mock Historical Data
+      Object.values(projectDetailMap).forEach(pd => {
+          // Generate dummy historical data grouped by a Legacy User
+          const legacyUserId = 'legacy-user-001';
+          const mockCost = 150000; // Large amount for history
+          const mockHours = 300;
+
+          pd.cumulativeCost += mockCost;
+          pd.cumulativeHours += mockHours;
+
+          if (!pd.cumulativePersonMap[legacyUserId]) {
+              pd.cumulativePersonMap[legacyUserId] = {
+                  userId: legacyUserId,
+                  userName: 'Legacy Contributor (Previous Phases)',
+                  totalHours: 0,
+                  totalCost: 0
+              };
+          }
+          pd.cumulativePersonMap[legacyUserId].totalHours += mockHours;
+          pd.cumulativePersonMap[legacyUserId].totalCost += mockCost;
       });
 
       // Prepare Breakdown Arrays
@@ -322,8 +401,20 @@ export const hrService = {
 
       const teamPerformance = Object.values(userStatsMap).map((u: any) => ({
           ...u,
-          efficiencyRate: 100, // Mock: Assumed 100% for done tasks in this period
+          efficiencyRate: 100, // Mock
           costContribution: Math.round(u.costContribution)
+      }));
+
+      // Prepare Detailed Array with Person grouping
+      const projectDetails: ProjectMonthlyDetail[] = Object.values(projectDetailMap).map(pd => ({
+          projectId: pd.projectId,
+          projectName: pd.projectName,
+          totalCost: Math.round(pd.totalCost),
+          totalHours: parseFloat(pd.totalHours.toFixed(1)),
+          tasks: pd.tasks,
+          cumulativeCost: Math.round(pd.cumulativeCost),
+          cumulativeHours: parseFloat(pd.cumulativeHours.toFixed(1)),
+          cumulativePersonCosts: Object.values(pd.cumulativePersonMap) // Convert map to array
       }));
 
       return {
@@ -331,7 +422,8 @@ export const hrService = {
           generatedAt: new Date().toLocaleString(),
           totalCost: Math.round(totalCost),
           projectBreakdown,
-          teamPerformance
+          teamPerformance,
+          projectDetails
       };
   },
 
@@ -361,21 +453,45 @@ export const hrService = {
       const now = new Date().toISOString().split('T')[0];
       const formatCurrency = (n: number) => new Intl.NumberFormat('zh-TW', { style: 'currency', currency: 'TWD', maximumFractionDigits: 0 }).format(n);
 
-      let content = `# 專案成本分攤報表 (Project Cost Report)\n\n`;
+      let content = `# 專案成本分攤月報表 (Project Cost Report)\n\n`;
+      content += `> 此報表包含敏感財務資訊，請密件處理。\n\n`;
       content += `**計算區間 (Period):** ${report.period}\n`;
       content += `**生成時間 (Generated):** ${report.generatedAt}\n\n`;
       
-      content += `## 1. 專案成本佔比 (Project Cost Breakdown)\n\n`;
+      content += `## 1. 專案成本佔比 (Cost Breakdown)\n\n`;
       content += `| 專案名稱 (Project) | 分攤成本 (Allocated Cost) | 佔比 (%) |\n|---|---|---|\n`;
       report.projectBreakdown.forEach(p => {
           content += `| **${p.projectName}** | ${formatCurrency(p.cost)} | ${p.percentage}% |\n`;
       });
-      content += `| **總計** | **${formatCurrency(report.totalCost)}** | **100%** |\n\n`;
+      content += `| **總計 (Total)** | **${formatCurrency(report.totalCost)}** | **100%** |\n\n`;
 
-      content += `## 2. 團隊績效與工作量 (Team Performance & Workload)\n\n`;
+      content += `## 2. 團隊績效與工作量 (Team KPI)\n\n`;
       content += `| 成員 (Member) | 工時 (Hours) | 任務數 (Tasks) | 達成率 (KPI) | 成本貢獻 (Cost) |\n|---|---|---|---|---|\n`;
       report.teamPerformance.forEach(u => {
           content += `| ${u.userName} | ${u.totalHours.toFixed(1)} h | ${u.tasksCompleted} | ${u.efficiencyRate}% | ${formatCurrency(u.costContribution)} |\n`;
+      });
+      content += `\n`;
+
+      content += `## 3. 各專案月明細與累計 (Monthly & Cumulative Details)\n\n`;
+      
+      report.projectDetails.forEach(pd => {
+          content += `### 📂 ${pd.projectName}\n`;
+          content += `- **本月成本:** ${formatCurrency(pd.totalCost)} (${pd.totalHours} h)\n`;
+          content += `- **累計成本 (YTD):** ${formatCurrency(pd.cumulativeCost)} (${pd.cumulativeHours} h)\n\n`;
+          
+          content += `#### 本月任務明細 (Monthly Tasks):\n`;
+          content += `| 任務 (Task) | 負責人 (Assignee) | 工時 | 成本 |\n|---|---|---|---|\n`;
+          pd.tasks.forEach(t => {
+              content += `| ${t.taskId} ${t.taskTitle} | ${t.assigneeName} | ${t.hours}h | ${formatCurrency(t.cost)} |\n`;
+          });
+          
+          content += `\n#### 專案累計明細 (Cumulative by Person):\n`;
+          content += `| 負責人 (Assignee) | 累計工時 (Total Hours) | 累計成本 (Total Cost) |\n|---|---|---|\n`;
+          pd.cumulativePersonCosts.forEach(p => {
+              content += `| ${p.userName} | ${p.totalHours}h | ${formatCurrency(p.totalCost)} |\n`;
+          });
+
+          content += `\n---\n\n`;
       });
 
       const newDoc: Document = {
@@ -390,7 +506,7 @@ export const hrService = {
           updated_at: now,
           author_id: userId,
           last_modified_by_id: userId,
-          ai_summary: 'System Generated Monthly Cost Allocation Report'
+          ai_summary: 'System Generated Monthly Cost Allocation Report including detailed breakdown.'
       };
       MOCK_DOCS.push(newDoc);
       return newDoc;
@@ -414,7 +530,8 @@ export const hrService = {
           generatedAt: new Date().toLocaleString(),
           totalCost: transaction.amount,
           projectBreakdown: [],
-          teamPerformance: []
+          teamPerformance: [],
+          projectDetails: []
       }, userId);
   }
 };
