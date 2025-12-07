@@ -1,36 +1,62 @@
 
-// Data Models based on PDF
+// Data Models based on Permission Architecture 2.0
+
+// 1. Users & Global Roles
 export interface User {
   id: string;
   name: string;
   email: string;
   avatar: string;
-  roles: string[]; // e.g., ["hr_manager", "staff", "admin"]
-  permissions: string[]; // e.g., ["leave:approve", "salary:view:dept"]
+  roles: string[]; // Global Roles keys e.g., ["hr_manager", "staff"]
   department: {
     id: string;
     name: string;
   };
   // HR & Payroll Fields
-  onboarding_date: string; // YYYY-MM-DD
+  onboarding_date: string;
   base_salary: number;
   meal_allowance?: number;
   position_allowance?: number;
-  salary?: number; // Kept for backward compatibility with Module B mock
+  salary?: number;
+  
+  // Project Scope Roles (User -> Project -> Role)
+  project_roles: Record<string, string>; // { "proj-001": "p_owner" }
 }
 
 export interface Permission {
   id: string;
-  slug: string; // e.g., "salary:view:dept"
+  slug: string; // Resource:Action:Scope e.g., "salary:view:dept"
   name: string;
-  category: string; // For grouping in UI
+  module: string; // HR, PROJECT, FINANCE, WIKI
+  description: string;
 }
 
 export interface Role {
-  id: string;
+  id: string; // e.g. "role_hr"
+  key: string; // e.g. "hr_manager"
   name: string;
   description: string;
-  permissionIds: string[];
+  permissionIds: string[]; // List of permission IDs
+}
+
+// 2. Project Scope Roles
+export interface ProjectRoleDefinition {
+  id: string;
+  key: string; // e.g., "p_owner", "p_member"
+  name: string;
+  capabilities: Record<string, boolean>; // JSONB in DB: { "view_cost": true }
+}
+
+// 3. Delegation (Advanced)
+export interface Delegation {
+  id: string;
+  from_user_id: string;
+  to_user_id: string;
+  role_key: string; // The Global Role being delegated temporarily
+  start_at: string;
+  end_at: string;
+  reason: string;
+  is_active: boolean;
 }
 
 // --- Module C: HR & Finance ---
@@ -41,7 +67,7 @@ export interface LeaveType {
   id: string;
   name: string;
   category: LeaveTypeCategory;
-  pay_ratio: number; // 1.0 = Full Pay, 0.5 = Half Pay, 0.0 = No Pay
+  pay_ratio: number;
   min_unit_hours: number;
 }
 
@@ -57,30 +83,22 @@ export interface LeaveRequest {
   id: string;
   user_id: string;
   type_id: string;
-  start_date: string; // ISO String
-  end_date: string;   // ISO String
+  start_date: string;
+  end_date: string;
   hours: number;
   reason: string;
-  status: 'Pending' | 'Manager Approved' | 'Approved' | 'Rejected'; // Updated status
+  status: 'Pending' | 'Manager Approved' | 'Approved' | 'Rejected';
   handover_user_id?: string;
   rejection_reason?: string;
-  attachments?: string[]; // New: File names or URLs
+  attachments?: string[];
   created_at: string;
-}
-
-export interface PayrollRun {
-  id: string;
-  period: string; // YYYY-MM
-  status: 'Draft' | 'Closed';
-  total_payout: number;
-  generated_at: string;
 }
 
 export interface PayslipItem {
   name: string;
   amount: number;
   type: 'earning' | 'deduction';
-  note?: string; // e.g. "208 * 1.34 * 4hr"
+  note?: string;
 }
 
 export interface Payslip {
@@ -91,17 +109,17 @@ export interface Payslip {
   overtime_pay: number;
   leave_deduction: number;
   gross_pay: number;
-  insurance_deduction: number; // Labor + Health
+  insurance_deduction: number;
   net_pay: number;
   items: PayslipItem[];
 }
 
 export interface CostTransaction {
   id: string;
-  project_id: string; // Used as Project Name key
-  category: string; // Used as Project Name in display
+  project_id: string;
+  category: string;
   amount: number;
-  date: string; // Used as Period
+  date: string;
   description: string;
 }
 
@@ -123,12 +141,12 @@ export interface ProjectPersonCost {
 export interface ProjectMonthlyDetail {
     projectId: string;
     projectName: string;
-    totalCost: number; // Monthly Total
+    totalCost: number;
     totalHours: number;
-    tasks: ProjectTaskCost[]; // Monthly Tasks
-    cumulativeCost: number; // YTD Mock
-    cumulativeHours: number; // YTD Mock
-    cumulativePersonCosts: ProjectPersonCost[]; // Cumulative aggregated by Person
+    tasks: ProjectTaskCost[];
+    cumulativeCost: number;
+    cumulativeHours: number;
+    cumulativePersonCosts: ProjectPersonCost[];
 }
 
 export interface MonthlyCostReport {
@@ -149,10 +167,10 @@ export interface MonthlyCostReport {
         efficiencyRate: number;
         costContribution: number;
     }[];
-    projectDetails: ProjectMonthlyDetail[]; // New detailed breakdown
+    projectDetails: ProjectMonthlyDetail[];
 }
 
-// --- Module B: Project Management Models ---
+// --- Module B: Project Management ---
 
 export type ProjectStage = 'Planning' | 'In Progress' | 'In Delivery' | 'In Maintenance' | 'Done';
 export type TaskStatus = 'To Do' | 'In Progress' | 'Code Review' | 'In Test' | 'Done' | 'Backlog';
@@ -160,15 +178,15 @@ export type TaskStatus = 'To Do' | 'In Progress' | 'Code Review' | 'In Test' | '
 export interface Project {
   id: string;
   name: string;
-  manager_id: string; // For budget permission check
+  manager_id: string;
   stage: ProjectStage;
-  budget: number; // Sensitive data
+  budget: number;
   start_date: string;
   target_end_date: string;
-  progress: number; // 0-100
+  progress: number;
   description: string;
-  goal?: string; // New: Project Goal
-  team_members?: string[]; // New: List of User IDs
+  goal?: string;
+  team_members?: string[];
 }
 
 export interface Milestone {
@@ -182,7 +200,7 @@ export interface Milestone {
 export interface WeeklyReport {
   id: string;
   project_id: string;
-  week: string; // e.g. "2025-W47"
+  week: string;
   summary: string;
   completion_rate: number;
   created_at: string;
@@ -190,7 +208,7 @@ export interface WeeklyReport {
 
 export interface Sprint {
   id: string;
-  name: string; // e.g., "2025-W48"
+  name: string;
   start_date: string;
   end_date: string;
   status: 'Active' | 'Planned' | 'Completed';
@@ -198,8 +216,8 @@ export interface Sprint {
 }
 
 export interface SprintSettings {
-  duration_weeks: number; // 1-4
-  start_day: number; // 1 = Monday
+  duration_weeks: number;
+  start_day: number;
 }
 
 export interface Comment {
@@ -220,70 +238,41 @@ export interface Attachment {
 
 export interface Task {
   id: string;
-  key: string; // e.g., "WEB-101"
+  key: string;
   title: string;
   project_id: string;
-  sprint_id: string; // Can be null if Backlog
+  sprint_id: string;
   status: TaskStatus;
   assignee_id: string | null;
   priority: 'High' | 'Medium' | 'Low';
   story_points: number;
   description?: string;
-  related_task_ids?: string[]; // Changed from related_task_id to array
-  parent_task_id?: string; // New: For Sub-tasks hierarchy
+  related_task_ids?: string[];
+  parent_task_id?: string;
   deliverable_url?: string;
-  due_date?: string; // New: Deadline
-  time_spent?: string; // New: e.g. "5h 30m"
+  due_date?: string;
+  time_spent?: string;
   comments?: Comment[];
-  report_content?: string; // New: Report content (text/image references)
-  attachments?: Attachment[]; // New: File attachments
+  report_content?: string;
+  attachments?: Attachment[];
 }
-
-// For Blame Logic (FUNC_PM_02_EXT)
-export interface TaskHistory {
-  id: string;
-  task_id: string;
-  original_sprint_id: string;
-  new_sprint_id: string;
-  reason: string;
-  blamed_user_id: string; // Who caused the delay
-  created_at: string;
-}
-
-export type DocumentType = 'Requirements' | 'Design' | 'Meeting' | 'Technical' | 'Sprint Report' | 'HR_Payroll' | 'HR_CostReport' | 'HR_KPI' | 'Other';
 
 export interface Document {
   id: string;
   project_id: string;
   name: string;
-  type: DocumentType; // This serves as "Category"
+  type: DocumentType;
   url: string;
-  content?: string; // New: For internal documents created in-app
+  content?: string;
   updated_at: string;
   created_at: string;
-  version: string; // e.g., "v1.0"
+  version: string;
   author_id: string;
   last_modified_by_id: string;
-  ai_summary?: string; // For Meeting notes
+  ai_summary?: string;
 }
 
-// Sprint Review & Cost Calculation Models
-export interface UserPerformance {
-    userId: string;
-    userName: string;
-    tasksAssigned: number;
-    tasksCompleted: number;
-    totalHoursLogged: number;
-    efficiencyRate: number; // KPI
-    costContribution: number; // Salary * Hours ratio
-}
-
-export interface ProjectCostBreakdown {
-    projectId: string;
-    projectName: string;
-    cost: number;
-    hours: number;
-}
+export type DocumentType = 'Requirements' | 'Design' | 'Meeting' | 'Technical' | 'Sprint Report' | 'HR_Payroll' | 'HR_CostReport' | 'HR_KPI' | 'Other';
 
 export interface SprintReviewReport {
     sprintId: string;
@@ -292,11 +281,11 @@ export interface SprintReviewReport {
     completionRate: number;
     totalHours: number;
     totalCost: number;
-    teamPerformance: UserPerformance[];
-    projectBreakdown: ProjectCostBreakdown[];
+    teamPerformance: any[];
+    projectBreakdown: any[];
 }
 
-// --- Module D: Knowledge Base & RAG ---
+// --- Module D: Knowledge Base ---
 
 export interface KnowledgeCategory {
   id: string;
@@ -312,22 +301,16 @@ export interface KnowledgeDocument {
   size: string;
   uploaded_at: string;
   uploaded_by: string;
-  
-  // Permissions (RBAC)
   is_public: boolean;
-  allowed_roles: string[]; // e.g., ['hr_manager']
-  allowed_dept_ids: string[]; // e.g., ['dept-hr']
-  
-  // System Status
+  allowed_roles: string[];
+  allowed_dept_ids: string[];
   status: 'Processing' | 'Indexed' | 'Error';
 }
 
-// Simulates Vector DB Chunk
 export interface KnowledgeChunk {
   id: string;
   document_id: string;
   content_text: string;
-  // Metadata for filtering
   meta_allowed_roles: string[];
   meta_allowed_dept_ids: string[];
   meta_is_public: boolean;
@@ -338,7 +321,6 @@ export interface ChatMessage {
   role: 'user' | 'assistant' | 'system';
   content: string;
   timestamp: string;
-  // If assistant, can have citations
   sources?: {
     doc_id: string;
     doc_title: string;
@@ -346,21 +328,8 @@ export interface ChatMessage {
   }[];
 }
 
-// API Response Models
 export interface AuthResponse {
   access_token: string;
   refresh_token: string;
   user: User;
-}
-
-export interface ApiError {
-  code: string; // e.g., E-AUTH-001
-  message: string;
-}
-
-// State Models
-export interface AuthState {
-  isAuthenticated: boolean;
-  user: User | null;
-  loading: boolean;
 }

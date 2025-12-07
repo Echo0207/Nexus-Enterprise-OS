@@ -1,17 +1,16 @@
 
 import { KnowledgeDocument, KnowledgeChunk, KnowledgeCategory, User, ChatMessage } from '../types';
 import { MOCK_KB_CATEGORIES, MOCK_KB_DOCS, MOCK_KB_CHUNKS } from './mockKBData';
+import { permissionService } from './permissionService';
 
 const delay = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
 
 export const kbService = {
-  // 1. Get Categories
   getCategories: async (): Promise<KnowledgeCategory[]> => {
     await delay(200);
     return [...MOCK_KB_CATEGORIES];
   },
 
-  // 2. Get Documents (All for list, permissions checked in search)
   getDocuments: async (categoryId?: string): Promise<KnowledgeDocument[]> => {
     await delay(300);
     if (categoryId) {
@@ -20,7 +19,6 @@ export const kbService = {
     return [...MOCK_KB_DOCS];
   },
 
-  // 3. Upload Document (Simulated Ingestion)
   uploadDocument: async (
     file: File, 
     meta: { 
@@ -32,9 +30,8 @@ export const kbService = {
     },
     user: User
   ): Promise<KnowledgeDocument> => {
-    await delay(1000); // Simulate upload & embedding time
+    await delay(1000); 
 
-    // Create Doc
     const newDoc: KnowledgeDocument = {
       id: 'kb-doc-' + Date.now(),
       title: meta.title,
@@ -51,11 +48,10 @@ export const kbService = {
 
     MOCK_KB_DOCS.push(newDoc);
 
-    // Simulate Chunking (Mock: just create one chunk with generic text)
     const newChunk: KnowledgeChunk = {
       id: 'chk-' + Date.now(),
       document_id: newDoc.id,
-      content_text: `(Simulated content of ${newDoc.title}) This document contains sensitive or public info based on upload settings.`,
+      content_text: `(Simulated content of ${newDoc.title}) This content is protected by RAG Permission Filter.`,
       meta_is_public: newDoc.is_public,
       meta_allowed_roles: newDoc.allowed_roles,
       meta_allowed_dept_ids: newDoc.allowed_dept_ids
@@ -65,50 +61,44 @@ export const kbService = {
     return newDoc;
   },
 
-  // 4. Secure AI Search (The Brain)
+  // 4. Secure AI Search (The Brain) with Permission Service
   searchKnowledgeBase: async (query: string, user: User): Promise<ChatMessage> => {
-    await delay(1500); // Simulate Vector Search + LLM Generation
+    await delay(1500); 
 
     // --- SECURE RETRIEVAL LOGIC (Filter BEFORE Search) ---
+    // PDF Page 4: Pre-filtering
     
-    // Step A: Filter Chunks based on User Context
+    // 1. Get User's effective roles (Global + Delegated)
+    const effectiveRoles = permissionService.getUserActiveRoles(user);
+
+    // 2. Filter Chunks
     const accessibleChunks = MOCK_KB_CHUNKS.filter(chunk => {
-      // 1. If public, allow
+      // A. Public check
       if (chunk.meta_is_public) return true;
 
-      // 2. Check Dept
+      // B. Dept Check
       if (chunk.meta_allowed_dept_ids.includes(user.department.id)) return true;
 
-      // 3. Check Role (Intersection of arrays)
-      const hasRole = chunk.meta_allowed_roles.some(r => user.roles.includes(r));
+      // C. Role Check (Intersection with effective roles)
+      const hasRole = chunk.meta_allowed_roles.some(r => effectiveRoles.includes(r));
       if (hasRole) return true;
 
       return false; // Access Denied
     });
 
-    // Step B: Keyword Search (Simulating Vector Similarity)
-    // Simple naive includes check for demo
+    // 3. Keyword Search on Accessible Chunks only
     const queryLower = query.toLowerCase();
     const relevantChunks = accessibleChunks.filter(chunk => 
       chunk.content_text.toLowerCase().includes(queryLower) ||
       MOCK_KB_DOCS.find(d => d.id === chunk.document_id)?.title.toLowerCase().includes(queryLower)
-    ).slice(0, 3); // Top 3 results
+    ).slice(0, 3); 
 
-    // Step C: Generate Answer
     let responseContent = "";
     const citations: any[] = [];
 
     if (relevantChunks.length === 0) {
-      // Fallback for HR/PM database queries (Mocking "Tool Use")
-      if (queryLower.includes('遲到') && user.roles.includes('staff')) {
-         responseContent = "根據您的打卡紀錄查詢，本月目前無遲到紀錄。全勤獎金 NT$3,000 目前資格符合。";
-      } else if (queryLower.includes('issue') && user.roles.includes('admin')) {
-         responseContent = "已為您查詢 Github，Issue #102 當前狀態為 Open。是否需要我將其改為 In Progress？";
-      } else {
-         responseContent = "抱歉，我在您有權限訪問的知識庫中找不到相關資訊。";
-      }
+       responseContent = "抱歉，根據您的權限（包含代理職務），我在知識庫中找不到相關資訊。";
     } else {
-      // Synthesize answer from chunks
       responseContent = "根據知識庫檢索結果：\n\n";
       relevantChunks.forEach((chunk, idx) => {
          const doc = MOCK_KB_DOCS.find(d => d.id === chunk.document_id);

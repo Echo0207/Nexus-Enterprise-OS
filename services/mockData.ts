@@ -1,60 +1,107 @@
 
-import { Role, Permission, User, LeaveType, LeaveRequest } from '../types';
+import { Role, Permission, User, LeaveType, LeaveRequest, ProjectRoleDefinition, Delegation } from '../types';
 
-// 1. Defined Permissions (Based on PDF examples)
+// 1. Permissions (Seed Data Strategy from PDF Page 11)
 export const MOCK_PERMISSIONS: Permission[] = [
   // HR Module
-  { id: 'p1', slug: 'hr:view:dashboard', name: '查看 HR 儀表板', category: 'HR模組' },
-  { id: 'p2', slug: 'leave:request', name: '申請請假', category: 'HR模組 > 請假' },
-  { id: 'p3', slug: 'leave:approve', name: '核准請假', category: 'HR模組 > 請假' },
-  { id: 'p4', slug: 'salary:view:dept', name: '查看部門薪資', category: 'HR模組 > 薪資' },
-  { id: 'p5', slug: 'salary:view:all', name: '查看全公司薪資', category: 'HR模組 > 薪資' },
-  { id: 'p8', slug: 'hr:manage:payroll', name: '管理薪資結算', category: 'HR模組 > 薪資' },
+  { id: 'p1', slug: 'leave:apply:own', name: '申請請假', module: 'HR', description: '允許使用者提交請假單' },
+  { id: 'p2', slug: 'leave:approve:dept', name: '核准部門假單', module: 'HR', description: '允許核准自己管轄部門的假單' },
   
+  // Finance Module
+  { id: 'p3', slug: 'salary:view:own', name: '查看個人薪資', module: 'FINANCE', description: '只能看自己的薪資條' },
+  { id: 'p4', slug: 'salary:view:dept', name: '查看部門薪資', module: 'FINANCE', description: '可查看本部門及子部門薪資' },
+  { id: 'p5', slug: 'salary:view:all', name: '查看全公司薪資', module: 'FINANCE', description: '財務長或老闆專用' },
+  
+  // Project Module
+  { id: 'p6', slug: 'project:create', name: '建立專案', module: 'PM', description: '允許發起新專案' },
+  
+  // Wiki Module
+  { id: 'p7', slug: 'kb:read:internal', name: '閱讀內部文件', module: 'WIKI', description: '可閱讀標記為 Internal 的知識庫文章' },
+  { id: 'p8', slug: 'kb:upload', name: '上傳文件', module: 'WIKI', description: '上傳文件到知識庫' },
+
   // Admin Module
-  { id: 'p6', slug: 'admin:view:roles', name: '查看角色列表', category: '系統管理 > 角色' },
-  { id: 'p7', slug: 'admin:edit:roles', name: '編輯角色權限', category: '系統管理 > 角色' },
+  { id: 'p9', slug: 'admin:edit:roles', name: '編輯角色權限', module: 'SYSTEM', description: '系統管理員專用' }
 ];
 
-// 2. Defined Roles
+// 2. Global Roles (Seed Data from PDF Page 11)
 export const MOCK_ROLES: Role[] = [
   { 
     id: 'role_admin', 
-    name: 'Admin', 
-    description: '系統管理員', 
-    permissionIds: ['p1', 'p2', 'p3', 'p4', 'p5', 'p6', 'p7', 'p8'] 
+    key: 'admin', 
+    name: '系統管理員 (Admin)', 
+    description: '擁有所有系統設定權限', 
+    permissionIds: ['p1', 'p2', 'p3', 'p4', 'p5', 'p6', 'p7', 'p8', 'p9'] 
   },
   { 
     id: 'role_hr', 
-    name: 'HR Manager', 
-    description: '人資經理', 
-    permissionIds: ['p1', 'p2', 'p3', 'p4', 'p8'] // Has salary:view:dept but NOT salary:view:all
+    key: 'hr_manager', 
+    name: '人資經理 (HR Manager)', 
+    description: '擁有 HR 模組權限，可看全公司出勤，不可看全公司薪資', 
+    permissionIds: ['p1', 'p2', 'p3', 'p4', 'p7', 'p8'] // No salary:view:all
   },
   { 
     id: 'role_staff', 
-    name: 'Staff', 
-    description: '一般員工', 
-    permissionIds: ['p2'] // Only leave request
+    key: 'staff', 
+    name: '一般員工 (Staff)', 
+    description: '基本的請假、打卡、查看自己專案', 
+    permissionIds: ['p1', 'p3', 'p7'] // Only own salary, internal docs
   },
 ];
 
-// 3. Defined Users for Login Simulation
+// 3. Project Role Definitions (Project Scope Roles from PDF Page 11)
+export const MOCK_PROJECT_ROLE_DEFINITIONS: ProjectRoleDefinition[] = [
+  {
+    id: 'pr_owner',
+    key: 'p_owner',
+    name: '專案負責人 (Owner)',
+    capabilities: {
+      edit_project: true,
+      view_cost: true,
+      manage_members: true
+    }
+  },
+  {
+    id: 'pr_member',
+    key: 'p_member',
+    name: '專案成員 (Member)',
+    capabilities: {
+      edit_project: false,
+      view_cost: false,
+      edit_tasks: true
+    }
+  }
+];
+
+// 4. Delegations (Advanced Scenario from PDF Page 10)
+export const MOCK_DELEGATIONS: Delegation[] = [
+  {
+    id: 'del-001',
+    from_user_id: 'uuid-001', // Alice (HR Manager)
+    to_user_id: 'uuid-002',   // Bob (Staff)
+    role_key: 'hr_manager',
+    start_at: '2025-05-01',
+    end_at: '2025-05-30',
+    reason: '產假代理',
+    is_active: false // Inactive for initial demo state
+  }
+];
+
+// 5. Users
 export const MOCK_USERS: Record<string, User & { passwordHash: string }> = {
   'admin@nexus.corp': {
     id: 'uuid-000',
     name: 'System Admin',
     email: 'admin@nexus.corp',
-    passwordHash: 'admin123', // Simplified for mock
+    passwordHash: 'admin123',
     avatar: 'https://picsum.photos/200',
     roles: ['admin'],
-    permissions: MOCK_PERMISSIONS.map(p => p.slug), // All permissions
     department: { id: 'dept-it', name: '資訊部' },
-    // HR Data - Seniority ~ 5 years
     onboarding_date: '2020-01-01',
     base_salary: 110000,
-    meal_allowance: 2400,
-    position_allowance: 5000,
-    salary: 117400
+    salary: 117400,
+    project_roles: {
+      'proj-002': 'p_owner' // Owner of ERP Project
+    }
   },
   'alice@nexus.corp': {
     id: 'uuid-001',
@@ -63,13 +110,13 @@ export const MOCK_USERS: Record<string, User & { passwordHash: string }> = {
     passwordHash: 'secret_password',
     avatar: 'https://picsum.photos/201',
     roles: ['hr_manager'],
-    permissions: ['hr:view:dashboard', 'leave:request', 'leave:approve', 'salary:view:dept', 'admin:view:roles', 'admin:edit:roles', 'hr:manage:payroll'],
     department: { id: 'dept-hr', name: '人資部' },
-    // HR Data - Seniority ~ 2 years
     onboarding_date: '2023-01-15',
     base_salary: 90000,
-    meal_allowance: 2400,
-    salary: 92400
+    salary: 92400,
+    project_roles: {
+      'proj-001': 'p_owner' // Owner of Web Revamp
+    }
   },
   'bob@nexus.corp': {
     id: 'uuid-002',
@@ -78,44 +125,20 @@ export const MOCK_USERS: Record<string, User & { passwordHash: string }> = {
     passwordHash: 'staff123',
     avatar: 'https://picsum.photos/202',
     roles: ['staff'],
-    permissions: ['leave:request'],
     department: { id: 'dept-sales', name: '業務部' },
-    // HR Data - Seniority < 1 year (Newbie)
     onboarding_date: '2024-06-01', 
     base_salary: 60000,
-    meal_allowance: 2400,
-    salary: 62400
+    salary: 62400,
+    project_roles: {
+      'proj-001': 'p_member', // Member of Web Revamp
+      'proj-003': 'p_owner'   // Owner of App Maint
+    }
   }
 };
 
 export const MOCK_LEAVE_TYPES: LeaveType[] = [
   { id: 'lt-1', name: '特別休假 (Special)', category: 'Special', pay_ratio: 1.0, min_unit_hours: 4 },
   { id: 'lt-2', name: '病假 (Sick)', category: 'Sick', pay_ratio: 0.5, min_unit_hours: 1 },
-  { id: 'lt-3', name: '事假 (Personal)', category: 'Personal', pay_ratio: 0.0, min_unit_hours: 1 },
-  { id: 'lt-4', name: '公假 (Official)', category: 'Official', pay_ratio: 1.0, min_unit_hours: 1 },
 ];
 
-export const MOCK_LEAVE_REQUESTS: LeaveRequest[] = [
-  {
-    id: 'lr-1',
-    user_id: 'uuid-002',
-    type_id: 'lt-2', // Sick
-    start_date: '2025-01-05T09:00:00',
-    end_date: '2025-01-05T18:00:00',
-    hours: 8,
-    reason: '感冒發燒',
-    status: 'Approved',
-    created_at: '2025-01-04'
-  },
-  {
-    id: 'lr-2',
-    user_id: 'uuid-002',
-    type_id: 'lt-1', // Special
-    start_date: '2025-02-14T09:00:00',
-    end_date: '2025-02-14T18:00:00',
-    hours: 8,
-    reason: '情人節',
-    status: 'Pending',
-    created_at: '2025-02-01'
-  }
-];
+export const MOCK_LEAVE_REQUESTS: LeaveRequest[] = [];

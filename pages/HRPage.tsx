@@ -2,6 +2,7 @@
 import React, { useState, useEffect } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { hrService } from '../services/hrService';
+import { permissionService } from '../services/permissionService';
 import { LeaveBalance, LeaveRequest, Payslip, CostTransaction, ProjectMonthlyDetail } from '../types';
 import { Calendar, DollarSign, PieChart, Briefcase, Plus, FileText, Download, CheckCircle, Clock, AlertTriangle, X, User as UserIcon, AlertCircle, Edit2, Check, Paperclip, FolderOpen, ArrowRight, ExternalLink } from 'lucide-react';
 import { MOCK_LEAVE_TYPES, MOCK_USERS } from '../services/mockData';
@@ -87,7 +88,7 @@ export const HRPage: React.FC = () => {
   const loadPendingApprovals = async () => {
       if (!user) return;
       // Only check if user has approve permission
-      if (user.permissions.includes('leave:approve')) {
+      if (permissionService.hasPermission(user, 'leave:approve:dept')) {
           const role = user.roles.includes('hr_manager') ? 'hr' : 'manager';
           const p = await hrService.getPendingRequests(user.id, role);
           setPendingRequests(p);
@@ -254,7 +255,7 @@ export const HRPage: React.FC = () => {
 
   if (!user) return <div>Access Denied</div>;
 
-  const canApprove = user.permissions.includes('leave:approve');
+  const canApprove = permissionService.hasPermission(user, 'leave:approve:dept');
 
   return (
     <div className="flex flex-col h-full space-y-4">
@@ -1080,17 +1081,3 @@ export const HRPage: React.FC = () => {
     </div>
   );
 };
-
-const TabButton = ({ id, label, icon, active, onClick }: { id: HRTab, label: string, icon: React.ReactNode, active: HRTab, onClick: (id: HRTab) => void }) => (
-    <button
-      onClick={() => onClick(id)}
-      className={`flex items-center gap-2 px-4 py-3 text-sm font-medium rounded-t-lg transition-colors border-b-2 ${
-        active === id 
-          ? 'bg-white text-blue-600 border-blue-600' 
-          : 'bg-transparent text-slate-500 border-transparent hover:text-slate-700 hover:bg-slate-50'
-      }`}
-    >
-      {icon}
-      {label}
-    </button>
-);
