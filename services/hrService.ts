@@ -1,4 +1,5 @@
 
+
 import { User, LeaveBalance, Payslip, LeaveType, LeaveRequest, PayslipItem, CostTransaction, Document, MonthlyCostReport, ProjectMonthlyDetail, ProjectTaskCost, ProjectPersonCost } from '../types';
 import { MOCK_USERS, MOCK_LEAVE_TYPES, MOCK_LEAVE_REQUESTS } from './mockData';
 import { MOCK_PROJECTS, MOCK_DOCS, MOCK_TASKS } from './mockProjectData';
@@ -324,7 +325,8 @@ export const hrService = {
                       userId: assigneeId,
                       userName: assigneeName,
                       totalHours: 0,
-                      totalCost: 0
+                      totalCost: 0,
+                      efficiencyRate: 100
                   };
               }
               pDetail.cumulativePersonMap[assigneeId].totalHours += hours;
@@ -382,7 +384,8 @@ export const hrService = {
                   userId: legacyUserId,
                   userName: 'Legacy Contributor (Previous Phases)',
                   totalHours: 0,
-                  totalCost: 0
+                  totalCost: 0,
+                  efficiencyRate: 100
               };
           }
           pd.cumulativePersonMap[legacyUserId].totalHours += mockHours;

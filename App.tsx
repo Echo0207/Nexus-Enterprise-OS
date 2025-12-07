@@ -10,6 +10,7 @@ import { Dashboard } from './pages/Dashboard';
 import { SalaryTestPage } from './pages/SalaryTestPage';
 import { HRPage } from './pages/HRPage';
 import { KnowledgeBasePage } from './pages/KnowledgeBasePage';
+import { LMSPage } from './pages/LMSPage';
 
 const ProtectedRoute = ({ children }: { children?: React.ReactNode }) => {
   const { isAuthenticated } = useAuth();
@@ -37,6 +38,9 @@ const AppRoutes = () => {
 
         {/* Module D: Knowledge Base */}
         <Route path="knowledge" element={<KnowledgeBasePage />} />
+
+        {/* Module E: LMS */}
+        <Route path="lms" element={<LMSPage />} />
 
         {/* RBAC Test Page */}
         <Route path="dept-salary" element={

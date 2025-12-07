@@ -136,6 +136,7 @@ export interface ProjectPersonCost {
     userName: string;
     totalHours: number;
     totalCost: number;
+    efficiencyRate: number;
 }
 
 export interface ProjectMonthlyDetail {
@@ -332,4 +333,75 @@ export interface AuthResponse {
   access_token: string;
   refresh_token: string;
   user: User;
+}
+
+// --- Module E: Education & Training Center (LMS) ---
+
+export type CourseUnitType = 'VIDEO' | 'ARTICLE' | 'QUIZ';
+
+export interface QuizOption {
+  id: string;
+  text: string;
+}
+
+export interface QuizQuestion {
+  id: string;
+  text: string;
+  options: QuizOption[];
+  correct_answer: string[]; // Supports multiple choice
+  score_weight: number;
+}
+
+export interface CourseUnit {
+  id: string;
+  course_id: string;
+  title: string;
+  type: CourseUnitType;
+  content_text?: string; // For Article
+  asset_url?: string;    // For Video
+  video_duration?: number; // In seconds
+  questions?: QuizQuestion[]; // For Quiz
+  order_index: number;
+  is_required: boolean;
+}
+
+export interface Course {
+  id: string;
+  title: string;
+  category: string; // e.g. "Onboarding", "Security", "Skill"
+  description: string;
+  cover_image: string;
+  estimated_minutes: number;
+  units: CourseUnit[];
+  is_published: boolean;
+  created_at: string;
+}
+
+export interface Enrollment {
+  id: string;
+  user_id: string;
+  course_id: string;
+  status: 'NOT_STARTED' | 'IN_PROGRESS' | 'COMPLETED';
+  progress_percent: number;
+  source: 'ASSIGNED' | 'SELF_ENROLLED';
+  assigned_by?: string; // System or Manager
+  due_date?: string;
+  completed_at?: string;
+  last_accessed_at?: string;
+  // Progress tracking per unit
+  unit_progress: Record<string, {
+    status: 'LOCKED' | 'OPEN' | 'COMPLETED';
+    last_position_sec?: number;
+    quiz_score?: number;
+  }>;
+}
+
+export interface AssignmentRule {
+  id: string;
+  title: string;
+  target_dept_id?: string | null;
+  target_role_id?: string | null;
+  assign_course_id: string;
+  deadline_days: number;
+  is_active: boolean;
 }

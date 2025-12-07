@@ -1,7 +1,7 @@
 
 import React from 'react';
 import { useAuth } from '../context/AuthContext';
-import { LogOut, LayoutDashboard, ShieldCheck, Users, Menu, FolderKanban, Briefcase, BookOpen } from 'lucide-react';
+import { LogOut, LayoutDashboard, ShieldCheck, Users, Menu, FolderKanban, Briefcase, BookOpen, GraduationCap } from 'lucide-react';
 import { NavLink, Outlet } from 'react-router-dom';
 
 export const Layout: React.FC = () => {
@@ -55,6 +55,17 @@ export const Layout: React.FC = () => {
             <Briefcase size={18} />
             財務與人資中心 (HR)
           </NavLink>
+          
+          <NavLink 
+            to="/lms" 
+            className={({ isActive }) => 
+              `flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm transition-colors ${isActive ? 'bg-blue-600 text-white' : 'text-slate-300 hover:bg-slate-800 hover:text-white'}`
+            }
+          >
+            <GraduationCap size={18} />
+            教育訓練中心 (LMS)
+          </NavLink>
+
           <NavLink 
             to="/dept-salary" 
             className={({ isActive }) => 
